@@ -3,3 +3,5 @@ textwrap==última_versão
 kivy==última_versão
 reportlab==última_versão
 datetime==última_versão
+PIL==última_versão
+PyPDF2==última_versão
