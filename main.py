@@ -10,11 +10,21 @@ from kivy.uix.popup import Popup
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from datetime import datetime
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.lib.colors import HexColor
+from reportlab.lib.units import cm
+from reportlab.pdfbase.pdfdoc import PDFString
+from reportlab.platypus import Image
+from PyPDF2 import PdfFileWriter, PdfFileReader
+from PIL import Image as PilImage
+
 
 class PDFCreatorApp(App):
     def build(self):
         self.title = "Criador de PDF Personalizado"
         self.logo_path = ""
+        self.watermark_path = ""
         self.char_count = Label(text="Caracteres digitados: 0", size_hint_y=None, height=30)
         
         layout = BoxLayout(orientation='vertical')
@@ -22,13 +32,13 @@ class PDFCreatorApp(App):
         self.logo_label = Label(text="", size_hint_y=None, height=30)
         layout.add_widget(self.logo_label)
         
+        self.watermark_label = Label(text="", size_hint_y=None, height=30)
+        layout.add_widget(self.watermark_label)
+        
         layout.add_widget(Label(text="Título:", size_hint_y=None, height=30))
         
-        title_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=30)
-        layout.add_widget(title_layout)
-        
-        self.title_input = TextInput(size_hint_x=0.5)
-        title_layout.add_widget(self.title_input)
+        self.title_input = TextInput(size_hint_y=None, height=30)
+        layout.add_widget(self.title_input)
         
         layout.add_widget(Label(text="Texto:", size_hint_y=None, height=30))
         
@@ -47,6 +57,10 @@ class PDFCreatorApp(App):
         logo_button = Button(text="Selecionar Logotipo", size_hint_x=0.5, size_hint_y=None, height=30)
         logo_button.bind(on_release=self.select_logo)
         button_layout.add_widget(logo_button)
+        
+        watermark_button = Button(text="Selecionar Marca d'água", size_hint_x=0.5, size_hint_y=None, height=30)
+        watermark_button.bind(on_release=self.select_watermark)
+        button_layout.add_widget(watermark_button)
         
         create_button = Button(text="Criar PDF", size_hint_x=0.5, size_hint_y=None, height=30)
         create_button.bind(on_release=self.create_pdf)
@@ -114,6 +128,27 @@ class PDFCreatorApp(App):
         c.setFillColor('white')    # Definir a cor de preenchimento para branco
         c.rect(logo_area_width, 0, frame_width, frame_height, fill=1)
         
+        # Adicionar a marca d'água no centro da página
+        if self.watermark_path:
+            try:
+                # Abra a imagem da marca d'água com a biblioteca PIL
+                watermark = PilImage.open(self.watermark_path)
+                # Converta a imagem para o modo RGBA para suportar transparência
+                watermark = watermark.convert("RGBA")
+                # Crie uma nova imagem preenchida com branco
+                white_layer = PilImage.new('RGBA', watermark.size, (255,255,255,255))
+                # Preencha o canal alfa da imagem da marca d'água com branco
+                alpha = watermark.split()[3]
+                watermark.putalpha(alpha)
+                # Misture a imagem da marca d'água e a camada branca
+                watermark = PilImage.blend(white_layer, watermark, alpha=0.5)
+                # Salve a nova imagem da marca d'água
+                watermark.save("watermark_transparent.png", "PNG")
+                # Adicione a nova imagem da marca d'água ao PDF
+                c.drawImage("watermark_transparent.png", page_width / 2, page_height / 2, width=100, height=100)
+            except Exception as e:
+              print(f"Erro ao criar a marca d'água: {str(e)}")
+       
         # Adicionar o título em negrito e alinhado com o texto dentro do quadro
         c.setFont("Helvetica-Bold", 12)
         c.setFillColor('black')  # Definir a cor do texto para preto
@@ -121,6 +156,7 @@ class PDFCreatorApp(App):
         
         # Iniciar a posição y para o texto abaixo do título
         y_position = 700
+
         
         # Adicionar o texto linha por linha dentro do quadro
         c.setFont("Helvetica", 10)
@@ -153,11 +189,24 @@ class PDFCreatorApp(App):
         else:
             self.confirmation_label.text = "Erro ao criar o PDF. Por favor, tente novamente."
             self.confirmation_label.color = (1, 0, 0, 1)  # Cor do texto alterada para vermelho
+        # Eliminar a imagem da marca d'água após sua conversão e inserção no PDF
+        if os.path.exists("watermark_transparent.png"):
+           os.remove("watermark_transparent.png")
 
     def select_logo(self, instance):
         filechooser = FileChooserIconView()
         select_button = Button(text="Selecionar", size_hint_y=None, height=30)
         select_button.bind(on_release=lambda x: self.update_logo_path(filechooser.selection, x))
+        popup_content = BoxLayout(orientation='vertical')
+        popup_content.add_widget(filechooser)
+        popup_content.add_widget(select_button)
+        self.popup = Popup(title="Selecione um arquivo", content=popup_content, size_hint=(0.9, 0.9))
+        self.popup.open()
+
+    def select_watermark(self, instance):
+        filechooser = FileChooserIconView()
+        select_button = Button(text="Selecionar", size_hint_y=None, height=30)
+        select_button.bind(on_release=lambda x: self.update_watermark_path(filechooser.selection, x))
         popup_content = BoxLayout(orientation='vertical')
         popup_content.add_widget(filechooser)
         popup_content.add_widget(select_button)
@@ -172,8 +221,14 @@ class PDFCreatorApp(App):
             self.logo_label.text = "Nenhum logotipo selecionado"
         self.popup.dismiss()  # Fechar o popup
 
+    def update_watermark_path(self, selection, instance):
+        if selection:
+            self.watermark_path = selection[0]
+            self.watermark_label.text = f"Marca d'água selecionada: {self.watermark_path}"
+        else:
+            self.watermark_label.text = "Nenhuma marca d'água selecionada"
+        self.popup.dismiss()  # Fechar o popup
         
-
 
 if __name__ == "__main__":
     PDFCreatorApp().run()
