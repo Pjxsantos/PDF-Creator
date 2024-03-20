@@ -18,6 +18,8 @@ Este aplicativo depende das seguintes bibliotecas Python:
 - textwrap
 - datetime
 - os
+- PIL
+- PyPDF2
 
 Você pode instalar essas dependências usando pip:
 
